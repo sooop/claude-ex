@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "우편번호 검색",
+  "version": "1.0.0",
+  "description": "우체국 우편번호를 빠르게 검색합니다",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "host_permissions": [
+    "https://mall.epost.go.kr/*",
+    "https://juso.go.kr/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://*.frame.claudeusercontent.com/*"],
+      "js": ["src/content/bridge.ts"],
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true,
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
