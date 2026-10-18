@@ -1,0 +1,10 @@
+{
+  "name": "@claude-ex/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "claude-ex 허브와 플러그인 확장이 공유하는 계약(TS 소스 그대로 배포)",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  }
+}

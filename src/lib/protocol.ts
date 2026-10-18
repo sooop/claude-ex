@@ -1,5 +1,6 @@
 // 확장 위임 프로토콜 v2(op 단위 양방향 RPC). 명세: docs/spec/01 3장, 02 4장.
 // reference/src/lib/protocolV2.ts 에서 우편번호 전용 부분(PROVIDES, WEB_QUERY_ADAPTERS, toLookupRequest)을 걷어냈다.
+import { V2_ERRORS, type V2Error } from '@/sdk/errors'
 
 export const PROTOCOL_V2 = 2
 export const V2_APP_SOURCE = 'ab-app'
@@ -9,7 +10,8 @@ export const V2_TYPES = ['hello', 'hello_ack', 'call', 'progress', 'result', 'ca
 export type V2Type = (typeof V2_TYPES)[number]
 
 export const NS_RE = /^[a-z0-9._-]{1,64}$/
-export const OP_RE = /^[a-z]+\.[a-z_]+$/
+export { OP_RE, type OpKind } from '@/sdk/plugin'
+import { OP_RE, type OpKind } from '@/sdk/plugin'
 
 export interface V2Envelope {
   source: typeof V2_APP_SOURCE
@@ -39,50 +41,9 @@ export function extEnvelope(ns: string, type: V2Type, id: string, body: Record<s
 }
 
 // ── 오류 ─────────────────────────────────────────────────────────────────────
+// 오류 형식은 플러그인과 공유하므로 SDK 에 있다
 
-export const V2_ERROR_CODES = [
-  'invalid_request', 'unsupported_op', 'unsupported_version', 'busy', 'timeout', 'cancelled',
-  'not_granted', 'blocked', 'network', 'parse_failed', 'payload_too_large', 'ai_unavailable', 'internal',
-] as const
-export type V2CommonCode = (typeof V2_ERROR_CODES)[number]
-/** 공통 코드 + op 고유 코드(소문자 snake_case, 예: math_error) */
-export type V2ErrorCode = V2CommonCode | (string & {})
-
-export interface V2Error {
-  code: V2ErrorCode
-  message: string
-  retryable: boolean
-  detail?: unknown
-}
-
-const err = (code: V2ErrorCode, message: string, retryable: boolean, detail?: unknown): V2Error =>
-  ({ code, message, retryable, ...(detail !== undefined ? { detail } : {}) })
-
-export const V2_ERRORS = {
-  invalid_request: (message = '요청 형식이 올바르지 않습니다', detail?: unknown) => err('invalid_request', message, false, detail),
-  unsupported_op: (message = '지원하지 않는 op 입니다', detail?: unknown) => err('unsupported_op', message, false, detail),
-  unsupported_version: (message = '지원하지 않는 프로토콜 버전입니다') => err('unsupported_version', message, false),
-  busy: (message = '처리 중인 호출이 있습니다') => err('busy', message, true),
-  timeout: (message = '제한 시간을 넘었습니다') => err('timeout', message, true),
-  cancelled: (message = '취소되었습니다') => err('cancelled', message, false),
-  ai_unavailable: (message = 'AI를 사용할 수 없습니다') => err('ai_unavailable', message, true),
-  internal: (message = '확장 내부 오류', detail?: unknown) => err('internal', message, false, detail),
-}
-
-/** 상대가 보낸 error 객체를 정규화한다. 모르는 코드는 internal 로 취급한다(공통 계약) */
-export function normalizeError(e: unknown, known: readonly string[] = []): V2Error {
-  if (!e || typeof e !== 'object') return V2_ERRORS.internal('형식이 잘못된 오류 응답')
-  const o = e as Record<string, unknown>
-  const code = typeof o.code === 'string' ? o.code : ''
-  const message = typeof o.message === 'string' ? o.message.slice(0, 300) : ''
-  const isKnown = (V2_ERROR_CODES as readonly string[]).includes(code) || known.includes(code)
-  return {
-    code: isKnown ? code : 'internal',
-    message: message || code || '알 수 없는 오류',
-    retryable: o.retryable === true,
-    ...(o.detail !== undefined ? { detail: o.detail } : {}),
-  }
-}
+export { V2_ERROR_CODES, V2_ERRORS, normalizeError, type V2CommonCode, type V2Error, type V2ErrorCode } from '@/sdk/errors'
 
 // ── 한도 ─────────────────────────────────────────────────────────────────────
 
@@ -105,7 +66,6 @@ export function clampTimeout(t: number | undefined): number {
 
 // ── 능력(provides) ───────────────────────────────────────────────────────────
 
-export type OpKind = 'read' | 'write' | 'sensitive'
 
 export interface ProvidedOp {
   op: string
