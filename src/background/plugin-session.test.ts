@@ -28,6 +28,8 @@ async function setup() {
   // index.ts 와 같은 배선
   h.host.onChange(() => live.rebuild())
   live.onChange(() => s.notifyCatalog())
+  // index.ts 처럼 연결 직후 확장이 먼저 hello 한다
+  s.hello()
   const call = (id: string, args: Msg, opts?: Msg) => s.handle(app({ type: 'call', id, op: 'web.query', ver: 1, args, ...(opts ? { opts } : {}) }))
   const result = (id: string) => sent.find((m) => m.type === 'result' && m.id === id)
   const activate = async (extId: string, ids: string[]) => {
@@ -151,6 +153,24 @@ describe('카탈로그 변경 알림', () => {
     await t.host.remove(POSTAL)
     expect(t.sent.filter((m) => m.type === 'event')).toHaveLength(2)
     expect(t.live.registry.get('web.query', 1)).toBeUndefined()
+  })
+
+  it('hello 를 주고받기 전에는 catalog_changed 를 보내지 않는다', async () => {
+    const h = makeHost()
+    await h.host.ready
+    const live = createLiveRegistry([calcEval], h.host)
+    const sent: Msg[] = []
+    const s = new AppSession((m) => sent.push(m), {
+      get registry() { return live.registry },
+      log: { appendSafe: async () => {} }, extVersion: '0.1.0', now: () => Date.now(), uuid: () => 'u', defaultNs: 'claude-ex-poc',
+    }, 'https://x.frame.claudeusercontent.com', 7)
+    h.host.onChange(() => live.rebuild())
+    live.onChange(() => s.notifyCatalog())
+    await h.register(POSTAL, { catalog: catalog(['epost-zip']) })
+    await h.host.approve(POSTAL)
+    expect(sent.filter((m) => m.type === 'event')).toHaveLength(0)
+    s.hello()
+    expect(sent.at(-1)).toMatchObject({ type: 'hello', catalogRev: live.registry.catalogRev })
   })
 
   it('카탈로그가 바뀌어 대기로 돌아가면 plugin 이 꺼지고 event 가 나간다', async () => {

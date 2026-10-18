@@ -60,15 +60,15 @@
 - SW 는 유휴 시 종료된다. 호출 상태를 메모리에만 두지 않고, 포트가 끊기면 콘텐츠 스크립트가 진행 중 id 마다 `internal`(`detail: worker_restarted`, `retryable: true`)을 돌려준다(postal 구현됨, `chrome.storage.session` 기록은 미구현).
 - 큐 타임아웃은 **큐에서 실행이 시작된 시점부터** 센다. v2 동시성은 세션당 op 1건, 초과는 `busy`.
 - v2 봉투 `source` 가 v1 과 달라(`ab-app`/`ab-ext`) 병행해도 간섭하지 않는다. 새 프로젝트는 v2 만 구현한다.
-- **두 확장 공존 문제**: postal 확장과 claude-ex 가 같은 브라우저에 설치되면 같은 프레임에 콘텐츠 스크립트가 둘 주입되고 둘 다 `hello_ack` 한다. 아티팩트가 `provides` 로 op 를 구분하도록 op 이름을 겹치지 않게 하거나(`web.query` 는 postal 이 이미 사용), 하나가 다른 쪽 `ns` 에는 응답하지 않게 정한다. **미결정 사항**이다.
+- **두 확장 공존 문제**: postal 확장과 claude-ex 가 같은 브라우저에 설치되면 같은 프레임에 콘텐츠 스크립트가 둘 주입되고 둘 다 `hello_ack` 한다. 아티팩트가 `provides` 로 op 를 구분하도록 op 이름을 겹치지 않게 하거나(`web.query` 는 postal 이 이미 사용), 하나가 다른 쪽 `ns` 에는 응답하지 않게 정한다. → **해결(2026-10-18)**: postal 은 v2 에 직접 응답하지 않고 허브의 플러그인으로 등록한다(10절, 명세 02 8장).
 
 ## 6. 미결정 / 사용자 확인이 필요한 사항
 
 - 정식 이름과 스토어 설명, 개인정보 고지.
 - 지원할 첫 어댑터(후보: 환율, 택배 추적, 사업자 상태, 법령). 쿠키 불필요한 공개 API 우선.
-- 두 확장 공존 정책(위 5절 마지막 항목).
 - 아티팩트 쪽 브리지: 이미 `anthropic-skills:artifact-extension-bridge` 스킬(ABP v2 브리지, 진단 패널, 모의 확장)이 있다. 이 스킬이 사용하는 계약이 `docs/spec/01` 과 일치하는지 확인 필요.
-- postal 쪽 확장을 계속 v2 로 유지할지, claude-ex 로 완전히 이전할지.
+- ~~postal 쪽 확장을 계속 v2 로 유지할지~~ → 결정(2026-10-18): postal 은 기존 앱과 v1 직통을 당분간 유지하고, v2 는 허브 경유로만 제공한다. 앱이 v2 로 옮기면 허브가 필수가 된다.
+- Firefox 대응: 빌드 도구는 crxjs 유지. Firefox 허브는 별도 프로젝트로 포크할 예정이며, 코어를 공유할지는 포크할 때 정한다. 걸림돌: `location.ancestorOrigins` 미지원, MV3 `service_worker` 배경 미지원.
 
 ## 7. postal 저장소 현재 상태 (참고)
 
@@ -97,3 +97,17 @@
 | `src/popup/` | 팝업 UI(tier, 번역 입력·결과, 연결 상태) |
 
 남은 일: 아티팩트 게시 후 `src/config.ts` 의 `ARTIFACT_URL` 채우기, 실제 브라우저 E2E, 게시 페이지의 프레임 origin 실측, 로그 열람·다운로드 UI.
+
+## 10. 플러그인 구조 (2026-10-18)
+
+계획: `docs/plans/2026-10-18-plugin-hub.md`, 명세: `docs/spec/02-…` 8장. 새 기능은 허브 코드에 op 를 넣는 대신 별도 확장(플러그인)이 허브에 op·어댑터를 등록할 수 있다.
+
+| 경로 | 내용 |
+| --- | --- |
+| `src/sdk/` | `@claude-ex/sdk`. 허브와 플러그인이 공유하는 계약(오류, 스키마, 플러그인 채널, `serveAsCompanion`). chrome·`@/` 별칭 의존 금지. postal 이 `file:../claude-ex/src/sdk` 로 참조하므로 두 저장소는 `D:\projects` 아래 나란히 둔다 |
+| `src/background/plugins.ts` | `PluginHost`: 등록 수신, 승인·거부·해제, 카탈로그 해시가 바뀌면 재승인 대기, 호출 중계 |
+| `src/background/registry.ts` | 플러그인 상태로 다시 만드는 레지스트리. 내장 `web.query@1`(어댑터 병합), `meta.describe` 어댑터 상세 |
+
+- 허브 확장 ID 는 manifest `key` 로 `cmnfclffoomldhdnghjbcdgednhaknho` 에 고정했다. 키 쌍은 저장소 밖 `%USERPROFILE%\.claude-ex-keys\` 에 있다(비밀키는 커밋하지 않는다).
+- 첫 플러그인은 postal(`web.query` 어댑터 `epost-zip`·`juso-addr`·`zip-auto`). postal 은 manifest 에 `key` 를 넣지 않는다(ID 가 바뀌면 학습 데이터·캐시를 잃는다).
+- 플러그인 만들기: SDK 의 `serveAsCompanion({hubId, name, version, catalog, handle})` 을 서비스 워커에서 한 번 부른다. 예시는 postal `src/plugin/`.

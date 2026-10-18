@@ -17,6 +17,25 @@ async function activated() {
 }
 
 describe('등록과 승인', () => {
+  it('카드에서 본 카탈로그(hash)와 지금 대기 중인 카탈로그가 다르면 승인·거부하지 않는다', async () => {
+    const { host, register } = makeHost()
+    await register(POSTAL, { catalog: catalog(['epost-zip']) })
+    const seen = host.list()[0].hash
+    // 카드를 보는 사이 다른 카탈로그로 재등록
+    await register(POSTAL, { catalog: catalog(['juso-addr']) })
+    expect(await host.approve(POSTAL, seen)).toBe(false)
+    expect(await host.deny(POSTAL, seen)).toBe(false)
+    expect(host.active()).toEqual([])
+    expect(await host.approve(POSTAL, host.list()[0].hash)).toBe(true)
+  })
+
+  it('저장된 상태를 읽지 못하면 저장소를 덮어쓰지 않는다', async () => {
+    const failing = makeHost({ stored: { [POSTAL]: { keep: true } }, failGet: true })
+    await failing.host.ready
+    await failing.register(POSTAL, { catalog: catalog() })
+    expect(failing.store[PLUGINS_KEY]).toEqual({ [POSTAL]: { keep: true } })
+  })
+
   it('새 플러그인은 대기, 승인하면 활성이 되고 변경이 알려진다', async () => {
     const { host, register, store } = makeHost()
     const changed = vi.fn()

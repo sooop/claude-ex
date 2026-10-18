@@ -57,9 +57,10 @@
     }
   }
 
-  async function pluginAction(kind: 'approvePlugin' | 'denyPlugin' | 'removePlugin', extId: string) {
+  async function pluginAction(kind: 'approvePlugin' | 'denyPlugin' | 'removePlugin', p: PluginInfo) {
     try {
-      await send({ kind, extId })
+      // 승인·거부는 카드에 보이는 카탈로그(hash)에만 적용된다
+      await send(kind === 'removePlugin' ? { kind, extId: p.extId } : { kind, extId: p.extId, hash: p.hash })
     } catch (e) {
       formError = msg(e)
     }
@@ -174,8 +175,8 @@
           <div class="row">
             <span class="hint">허용하면 아티팩트가 이 기능을 호출할 수 있습니다</span>
             <span class="actions">
-              <button type="button" class="ghost" onclick={() => pluginAction('denyPlugin', p.extId)}>거부</button>
-              <button type="button" class="primary" onclick={() => pluginAction('approvePlugin', p.extId)}>허용</button>
+              <button type="button" class="ghost" onclick={() => pluginAction('denyPlugin', p)}>거부</button>
+              <button type="button" class="primary" onclick={() => pluginAction('approvePlugin', p)}>허용</button>
             </span>
           </div>
         </div>
@@ -228,7 +229,7 @@
             {p.name} <span class="hint">v{p.version}{p.status === 'denied' ? ' · 거부됨' : ''}</span>
             <span class="hint block">{p.adapters.map((a) => a.id).concat(p.ops.map((o) => o.name)).join(', ') || '선언 없음'}</span>
           </span>
-          <button type="button" class="ghost" onclick={() => pluginAction('removePlugin', p.extId)}>해제</button>
+          <button type="button" class="ghost" onclick={() => pluginAction('removePlugin', p)}>해제</button>
         </div>
       {/each}
     {/if}

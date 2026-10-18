@@ -78,14 +78,18 @@ export function diffCatalog(prev: PluginCatalog, next: PluginCatalog): NonNullab
 export class PluginHost implements PluginSource {
   private state: Record<string, PluginRecord> = {}
   private listeners = new Set<() => void>()
+  /** 저장된 상태를 읽지 못했으면 false. 이때는 저장소에 쓰지 않는다 */
+  private persist = true
   /** 저장된 상태를 다 불러온 뒤 resolve. 등록 처리와 첫 레지스트리 생성은 이것을 기다린다 */
   readonly ready: Promise<void>
 
   constructor(private deps: PluginHostDeps) {
-    this.ready = deps.storage.get(PLUGINS_KEY).then((r) => {
+    const load = () => deps.storage.get(PLUGINS_KEY).then((r) => {
       const saved = r[PLUGINS_KEY]
       if (isObj(saved)) this.state = saved as Record<string, PluginRecord>
-    }).catch(() => {})
+    })
+    // 한 번 다시 시도하고, 그래도 못 읽으면 이번 서비스 워커 동안은 저장하지 않는다(빈 상태로 승인 기록을 덮어쓰지 않으려고)
+    this.ready = load().catch(load).catch(() => { this.persist = false })
   }
 
   /** onMessageExternal 리스너를 단다. 서비스 워커 최상위에서 동기로 불러야 한다(재시작 때 이벤트를 놓치지 않으려고) */
@@ -104,7 +108,7 @@ export class PluginHost implements PluginSource {
 
   private async changed() {
     for (const fn of [...this.listeners]) fn()
-    await this.deps.storage.set({ [PLUGINS_KEY]: this.state }).catch(() => {})
+    if (this.persist) await this.deps.storage.set({ [PLUGINS_KEY]: this.state }).catch(() => {})
   }
 
   // ── 등록 ───────────────────────────────────────────────────────────────────
@@ -139,9 +143,11 @@ export class PluginHost implements PluginSource {
       ...(prev?.approvedHash !== undefined ? { approvedHash: prev.approvedHash } : {}),
       ...(prev?.approvedCatalog ? { approvedCatalog: prev.approvedCatalog } : {}),
     }
-    if (rec.approvedHash === hash) {
+    // 해시는 빠른 비교용이고, 승인·거부 판정은 카탈로그 전체를 비교한다(해시 충돌로 다른 카탈로그가 통과하지 않게)
+    const same = (c: PluginCatalog | undefined) => !!c && canonicalJson(c) === canonicalJson(catalog)
+    if (rec.approvedHash === hash && same(rec.approvedCatalog)) {
       rec.status = 'active'
-    } else if (prev?.status === 'denied' && prev.hash === hash) {
+    } else if (prev?.status === 'denied' && prev.hash === hash && same(prev.catalog)) {
       return reject('사용자가 거부함') // 같은 내용으로는 다시 묻지 않는다
     }
     this.state[extId] = rec
@@ -171,21 +177,24 @@ export class PluginHost implements PluginSource {
 
   // ── 승인 ───────────────────────────────────────────────────────────────────
 
-  /** 승인 대기를 허용한다. 카탈로그 해시를 승인 기준으로 저장한다 */
-  async approve(extId: string): Promise<boolean> {
+  /** 승인 대기를 허용한다. 카탈로그 해시를 승인 기준으로 저장한다.
+   *  expectedHash 는 사용자가 카드에서 본 카탈로그의 해시다. 그사이 재등록으로 카탈로그가 바뀌었으면 승인하지 않는다 */
+  async approve(extId: string, expectedHash?: string): Promise<boolean> {
     await this.ready
     const rec = this.state[extId]
     if (rec?.status !== 'pending') return false
+    if (expectedHash !== undefined && rec.hash !== expectedHash) return false
     this.state[extId] = { ...rec, status: 'active', approvedHash: rec.hash, approvedCatalog: rec.catalog }
     await this.changed()
     return true
   }
 
   /** 승인 대기를 거부한다. 같은 카탈로그로 다시 등록해도 묻지 않는다 */
-  async deny(extId: string): Promise<boolean> {
+  async deny(extId: string, expectedHash?: string): Promise<boolean> {
     await this.ready
     const rec = this.state[extId]
     if (rec?.status !== 'pending') return false
+    if (expectedHash !== undefined && rec.hash !== expectedHash) return false
     this.state[extId] = { ...rec, status: 'denied' }
     await this.changed()
     return true
@@ -202,7 +211,7 @@ export class PluginHost implements PluginSource {
 
   list(): PluginInfo[] {
     return Object.entries(this.state).map(([extId, p]) => ({
-      extId, name: p.name, version: p.version, status: p.status,
+      extId, name: p.name, version: p.version, status: p.status, hash: p.hash,
       ops: p.catalog.ops.map((o) => ({ name: o.name, ver: o.ver, summary: o.summary })),
       adapters: Object.entries(p.catalog.adapters).flatMap(([op, list]) => list.map((a) => ({ op, id: a.id, summary: a.summary }))),
       ...(p.approvedCatalog && p.status !== 'active' ? { diff: diffCatalog(p.approvedCatalog, p.catalog) } : {}),

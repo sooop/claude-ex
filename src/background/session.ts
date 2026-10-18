@@ -58,6 +58,8 @@ export class AppSession {
   /** 진행 중인 확장 → 앱 call */
   private pending = new Map<string, Pending>()
   private disposed = false
+  /** hello 나 hello_ack 를 한 번이라도 보냈는지 */
+  private greeted = false
 
   constructor(
     private post: Post,
@@ -84,11 +86,14 @@ export class AppSession {
 
   /** 확장이 먼저 보내는 hello. 앱의 첫 메시지 전이면 defaultNs 로 보낸다 */
   hello(): void {
+    this.greeted = true
     this.send('hello', `x-${this.key}-${this.deps.uuid()}`, this.helloBody())
   }
 
   /** 카탈로그가 바뀌었음을 앱에 알린다(명세 01 3.8). 앱은 설명 캐시를 버리고 목록을 다시 받는다 */
   notifyCatalog(): void {
+    // 아직 hello 를 주고받기 전이면 보내지 않는다. 곧 보낼 hello 에 최신 catalogRev 가 실린다
+    if (!this.greeted) return
     this.send('event', `x-${this.key}-${this.deps.uuid()}`, { name: 'catalog_changed', data: { catalogRev: this.deps.registry.catalogRev } })
   }
 
@@ -104,6 +109,7 @@ export class AppSession {
       case 'hello':
         if (data.v !== PROTOCOL_V2) return
         this.notePeer(data)
+        this.greeted = true
         this.send('hello_ack', data.id, { ok: true, ...this.helloBody() })
         return
       case 'hello_ack':

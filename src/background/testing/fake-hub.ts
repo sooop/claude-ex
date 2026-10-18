@@ -37,7 +37,7 @@ export class FakePort implements PortLike {
   }
 }
 
-export function makeHost(opts: { stored?: unknown; reservedOps?: string[] } = {}) {
+export function makeHost(opts: { stored?: unknown; reservedOps?: string[]; failGet?: boolean } = {}) {
   const store: Record<string, unknown> = opts.stored !== undefined ? { plugins: opts.stored } : {}
   const ports: FakePort[] = []
   let external: ((msg: unknown, sender: { id?: string }, send: (r: unknown) => void) => boolean | void) | undefined
@@ -48,7 +48,10 @@ export function makeHost(opts: { stored?: unknown; reservedOps?: string[] } = {}
   }
   const deps: PluginHostDeps = {
     storage: {
-      get: async (k) => (k in store ? { [k]: JSON.parse(JSON.stringify(store[k])) } : {}),
+      get: async (k) => {
+        if (opts.failGet) throw new Error('storage 실패')
+        return k in store ? { [k]: JSON.parse(JSON.stringify(store[k])) } : {}
+      },
       set: async (items) => void Object.assign(store, JSON.parse(JSON.stringify(items))),
     },
     runtime: {

@@ -49,6 +49,8 @@ export interface PluginInfo {
   name: string
   version: string
   status: 'active' | 'pending' | 'denied'
+  /** 카드에 보이는 카탈로그의 해시. 승인·거부할 때 그대로 돌려보내 다른 카탈로그가 승인되지 않게 한다 */
+  hash: string
   ops: { name: string; ver: number; summary: string }[]
   adapters: { op: string; id: string; summary: string }[]
   /** 이전에 승인한 카탈로그가 있을 때만. 승인 대기 카드의 "이전 승인과의 차이" */
@@ -70,8 +72,8 @@ export type PopupRequest =
   /** 팝업이 결과를 보여 줬음을 알린다(unseen 해제, 배지 지움) */
   | { kind: 'seenJob' }
   | { kind: 'plugins' }
-  | { kind: 'approvePlugin'; extId: string }
-  | { kind: 'denyPlugin'; extId: string }
+  | { kind: 'approvePlugin'; extId: string; hash: string }
+  | { kind: 'denyPlugin'; extId: string; hash: string }
   | { kind: 'removePlugin'; extId: string }
 
 export type TranslateResponse = { ok: true; jobId: string } | { ok: false; error: { code: string; message: string } }

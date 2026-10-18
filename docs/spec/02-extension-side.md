@@ -150,6 +150,40 @@ Oct 16, 2026 · @sooop
 | `page.fill` | scripting, 대상 호스트 권한 | `every_time` | `chrome.scripting.executeScript`로 어댑터가 고정한 셀렉터에 값을 넣고 input·change 이벤트를 발생 | 대상 탭을 사용자가 고르게 할 것. 제출·저장 버튼 조작 금지. 채우지 못한 필드는 `skipped`로 보고 |
 | `kv.put`, `kv.get` | storage(필요 시 unlimitedStorage) | `first_use` | 키에 `ns:` 접두어를 붙여 오리진 간 격리. `rev` 비교(낙관적 잠금)로 쓰기 | rev가 다르면 덮어쓰지 않고 `conflict`. 값 크기 상한을 둔다 |
 
+## 8. 플러그인 확장 (2026-10-18, `docs/plans/2026-10-18-plugin-hub.md`)
+
+MV3는 원격 코드를 실행할 수 없으므로, 새 op나 어댑터를 허브 번들 밖에서 더하려면 **그 코드를 담은 별도 확장(플러그인)**이 허브에 등록한다. 아티팩트는 허브 하나와만 v2로 통신하고, 허브가 플러그인에 중계한다. 플러그인 코드도 여전히 어떤 확장 번들 안에 있으므로 4.2와 5장의 "원격 코드 금지"를 어기지 않는다.
+
+### 8.1 플러그인 채널
+
+허브와 플러그인 사이에만 쓰는 계약이다. 타입과 검증은 `src/sdk/plugin.ts`, 플러그인 쪽 구현은 `src/sdk/companion.ts`(`serveAsCompanion`).
+
+| 방향 | 수단 | 내용 |
+| --- | --- | --- |
+| 등록 (플러그인 → 허브) | `runtime.sendMessage(HUB_ID)` | `{kind:'abp-plugin/register', sdk, name, version, catalog}` → `{status:'active'|'pending'|'rejected', reason?}`. 플러그인 서비스 워커가 시작될 때마다 보낸다. 허브가 없으면 실패를 무시한다 |
+| 호출 (허브 → 플러그인) | 호출 1건마다 `runtime.connect(extId, {name:'abp-plugin/call'})` | `invoke{op, ver, adapter?, args, timeoutMs, sender{ns, origin}}` → `progress`* → `result`. 허브의 `cancel` 또는 포트 끊김이 취소다 |
+
+- 카탈로그는 함수 없는 선언이다: `{ops: PluginOpDef[], adapters: {[허브 op]: AdapterDef[]}}`. 어댑터 형식은 1/2 문서 3.8의 `meta.describe` 어댑터 상세와 같다. 크기 상한 32KiB.
+- 플러그인은 `sender.id === HUB_ID`인 연결만 받고, 받은 인자를 자기 스키마로 다시 검증한다.
+- 연결에 실패하면(플러그인 삭제·비활성) 허브는 `internal`, `detail: plugin_unreachable`, `retryable: true`로 답한다.
+
+### 8.2 등록과 승인
+
+- 처음 등록하면 승인 대기다. 허브는 툴바 배지(대기 건수, 번역 작업 배지가 우선)로 알리고, 사용자가 팝업의 승인 카드에서 허용하거나 거부한다.
+- 승인한 플러그인의 선언(kind, 설명, 스키마)은 그대로 믿는다.
+- **카탈로그 해시가 승인 때와 다르면 그 플러그인을 끄고 다시 승인 대기로 돌린다.** 코드만 바뀌고 카탈로그가 같으면 다시 묻지 않는다. 같은 해시로 거부한 등록은 다시 묻지 않는다.
+- 허브 내장 op와 겹치는 op, 다른 플러그인이 이미 쓰는 op 이름·어댑터 id는 거부한다. 어댑터는 허브가 정한 어댑터 op(현재 `web.query@1`)에만 보탤 수 있다.
+- 상태는 `chrome.storage.local`의 `plugins`에 둔다. 서비스 워커가 재시작되면 이 상태를 읽어 레지스트리를 만든 뒤에 세션의 hello를 보낸다.
+
+### 8.3 `web.query`의 어댑터 병합
+
+- `web.query@1`은 허브 내장 op다. 인자는 `{adapter, params}`이고, 허브가 어댑터를 가진 플러그인을 찾아 `params`를 그 어댑터 스키마로 검증한 뒤 넘긴다. 결과 meta에는 `untrusted: true`를 붙인다.
+- 활성 어댑터가 없으면 `provides`에서 빠진다. 승인·해제·재승인 대기로 카탈로그가 바뀌면 열린 세션에 `catalog_changed`를 보낸다.
+
+### 8.4 공존
+
+같은 프레임에 두 확장이 v2로 응답하지 않도록, 플러그인은 아티팩트와 v2로 직접 통신하지 않는다(1/2 문서 3.8의 "확장은 한 번에 하나" 전제를 유지). postal은 v1만 직접 처리하고 v2는 허브를 거친다.
+
 ## 부록: PoC 예외 (2026-10-17, `docs/plans/2026-10-17-poc-extension.md`)
 
 개념 실증 단계에서는 아래 항목을 이 문서와 다르게 구현했다. 정식 단계에서 되돌린다.

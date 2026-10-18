@@ -166,9 +166,9 @@ chrome.runtime.onMessage.addListener((req: PopupRequest, sender, sendResponse) =
       case 'plugins':
         return sendResponse(plugins.list() satisfies PluginInfo[])
       case 'approvePlugin':
-        return sendResponse({ ok: typeof req.extId === 'string' && (await plugins.approve(req.extId)) })
+        return sendResponse({ ok: typeof req.extId === 'string' && typeof req.hash === 'string' && (await plugins.approve(req.extId, req.hash)) })
       case 'denyPlugin':
-        return sendResponse({ ok: typeof req.extId === 'string' && (await plugins.deny(req.extId)) })
+        return sendResponse({ ok: typeof req.extId === 'string' && typeof req.hash === 'string' && (await plugins.deny(req.extId, req.hash)) })
       case 'removePlugin':
         return sendResponse({ ok: typeof req.extId === 'string' && (await plugins.remove(req.extId)) })
       default:

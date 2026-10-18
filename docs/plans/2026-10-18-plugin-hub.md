@@ -106,7 +106,7 @@ MV3는 원격 코드 실행을 금지하므로 플러그인 코드를 허브가 
 
 - `package.json`에 `"@claude-ex/sdk": "file:../claude-ex/src/sdk"`를 추가한다. Vite와 vitest가 저장소 밖의 TS 소스를 처리하는지 확인한다. 필요하면 Vite의 `server.fs.allow`나 vitest의 `deps` 설정을 조정한다.
 - **`src/plugin/catalog.ts`**: `web.query`용 어댑터 3개의 선언(id, summary, description, `params` 스키마 `{searchText?, oldAddr?, oldZip?, limit?, analyze?}`, hosts). `protocolV2.ts`의 `WEB_QUERY_ADAPTERS`와 설명을 옮겨 온다.
-- **`src/plugin/index.ts`**: `serveAsCompanion`에 연결한다. `handle`은 `toLookupRequest`를 새 인자 형식에 맞게 고쳐 조회 요청으로 바꾸고, 기존 `RequestQueue`를 거쳐 `runLookup`을 실행한다. 팝업 검색과 v1 조회가 같은 큐를 쓰므로 우체국 요청 간격 규칙이 그대로 지켜진다. 이를 위해 `BridgeSession.runQueued`의 큐 실행 부분을 세션 밖의 함수로 꺼내 v1과 플러그인이 함께 쓴다.
+- **`src/plugin/index.ts`**: `serveAsCompanion`에 연결한다. `handle`은 `toLookupRequest`를 새 인자 형식에 맞게 고쳐 조회 요청으로 바꾸고, 기존 `RequestQueue`를 거쳐 `runLookup`을 실행한다. v1 앱 조회와 같은 큐를 쓰므로(팝업 검색은 자체 간격을 쓴다) 우체국 요청 간격 규칙이 그대로 지켜진다. 이를 위해 `BridgeSession.runQueued`의 큐 실행 부분을 세션 밖의 함수로 꺼내 v1과 플러그인이 함께 쓴다.
 - `HUB_ID`는 `src/lib/settings.ts` 쪽의 상수로 둔다. 2단계에서 정해지는 고정 ID를 넣는다.
 - **v2 직접 응답 제거**
   - `session.ts`: `handleV2`, `callV2`, `hello`, `sendV2`, `activeV2`를 지운다.
