@@ -149,3 +149,14 @@ Oct 16, 2026 · @sooop
 | `file.save` | downloads | `first_use`(폴더 변경 시 `every_time`) | base64 청크(각 512KiB)를 조립 후 `chrome.downloads.download`, `conflictAction: uniquify` | `..`·절대 경로 거부, 확장자 허용 목록, 총 용량 상한. 포트로는 JSON만 오므로 바이너리는 찭크로 나눠 보낸다 |
 | `page.fill` | scripting, 대상 호스트 권한 | `every_time` | `chrome.scripting.executeScript`로 어댑터가 고정한 셀렉터에 값을 넣고 input·change 이벤트를 발생 | 대상 탭을 사용자가 고르게 할 것. 제출·저장 버튼 조작 금지. 채우지 못한 필드는 `skipped`로 보고 |
 | `kv.put`, `kv.get` | storage(필요 시 unlimitedStorage) | `first_use` | 키에 `ns:` 접두어를 붙여 오리진 간 격리. `rev` 비교(낙관적 잠금)로 쓰기 | rev가 다르면 덮어쓰지 않고 `conflict`. 값 크기 상한을 둔다 |
+
+## 부록: PoC 예외 (2026-10-17, `docs/plans/2026-10-17-poc-extension.md`)
+
+개념 실증 단계에서는 아래 항목을 이 문서와 다르게 구현했다. 정식 단계에서 되돌린다.
+
+| 항목 | 이 문서 | PoC 구현 |
+| --- | --- | --- |
+| 감사 로그 | 시각·오리진·op·결과 코드·크기만 500건, 본문 저장 금지 | 앱 → 확장 호출의 args·result 본문을 IndexedDB(`claude-ex`/`calls`)에 저장. 항목당 8KiB에서 자르고 1,000건 유지(`src/background/log.ts`) |
+| 오리진 허용 | 옵션 페이지 허용 목록 | `*.frame.claudeusercontent.com` + 상위 `claude.ai` 고정(`src/lib/origin.ts`) |
+| 권한·동의 4겹 | 호스트 권한, 오리진 허용, 호출 동의 UI | 없음. op 가 모두 read 라서 생략. 레지스트리 정의에 kind·consent 는 둔다 |
+| 동시성 | 직렬 큐 | 세션·op 당 1건, 초과는 busy. 타임아웃은 AbortController |

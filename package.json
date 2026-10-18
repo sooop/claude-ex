@@ -1,0 +1,28 @@
+{
+  "name": "claude-ex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "아티팩트 위임 확장(ABP v2) 개념 실증",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.app.json --noEmit && vite build",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && svelte-check --tsconfig ./tsconfig.app.json",
+    "test": "vitest run",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.33",
+    "@resvg/resvg-js": "^2.6.2",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@tsconfig/svelte": "^5.0.4",
+    "@types/chrome": "^0.3.5",
+    "fake-indexeddb": "^6.0.0",
+    "lucide": "^0.468.0",
+    "svelte": "^5.20.0",
+    "svelte-check": "^4.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.1",
+    "vitest": "^5.0.4"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "claude-ex (PoC)",
+  "version": "0.1.0",
+  "description": "아티팩트의 작업을 대신 수행하는 위임 확장 개념 실증",
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.frame.claudeusercontent.com/*"
+      ],
+      "js": [
+        "src/content/bridge.ts"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true,
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "claude-ex",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,131 @@
+<!-- ABP 진단 패널: 상태줄은 헤더에, details는 페이지 맨 아래에 둔다 -->
+<p class="abp-status" id="abpStatus" aria-live="polite"></p>
+<details class="abp-diag" id="abpDiag">
+  <summary>연동 진단 (개발용)</summary>
+  <div class="abp-body">
+    <div id="abpPeer" class="abp-peer"></div>
+    <div class="abp-row">
+      <button type="button" data-abp="ping">ping 보내기</button>
+      <button type="button" data-abp="rescan">다시 확인</button>
+      <button type="button" data-abp="clear">기록 지우기</button>
+      <button type="button" data-abp="copy">기록 복사</button>
+    </div>
+    <div class="abp-row"><button type="button" data-abp="refresh">카탈로그 새로고침</button><span id="abpRev" class="abp-peer"></span></div>
+    <ul id="abpCat" class="abp-cat"></ul>
+    <pre id="abpOut" class="abp-out" hidden></pre>
+    <fieldset class="abp-test">
+      <legend>테스트 호출 (앱 → 확장)</legend>
+      <div class="abp-row">
+        <select id="abpOp" aria-label="op 선택"></select>
+        <button type="button" data-abp="run">실행</button>
+        <button type="button" data-abp="stop" disabled>취소</button>
+      </div>
+      <textarea id="abpArgs" rows="3" aria-label="args JSON">{}</textarea>
+      <div class="abp-row"><button type="button" data-abp="example">예시 채우기</button><span class="abp-peer">선택한 op의 describe 예시를 args에 넣습니다</span></div>
+    </fieldset>
+    <div class="abp-tblwrap">
+      <table class="abp-log"><thead><tr><th>시각</th><th>방향</th><th>type</th><th>op</th><th>id</th><th>결과</th><th>크기</th></tr></thead><tbody id="abpLog"></tbody></table>
+    </div>
+  </div>
+</details>
+<style>
+.abp-status{font-size:12.5px;color:var(--muted,#5c6773);margin:4px 0}
+.abp-diag{border:1px solid var(--line,#d5dae0);border-radius:8px;background:var(--panel,#fff);padding:8px 12px;margin:14px 0;font-size:13px}
+.abp-diag summary{cursor:pointer;color:var(--muted,#5c6773)}
+.abp-body{margin-top:8px}.abp-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.abp-diag button,.abp-diag select{font:inherit;padding:3px 10px;min-height:28px;border:1px solid var(--line,#d5dae0);border-radius:6px;background:var(--panel,#fff);color:inherit;cursor:pointer}
+.abp-diag button[disabled]{opacity:.5;cursor:not-allowed}
+.abp-diag textarea{width:100%;font:12px ui-monospace,monospace;padding:6px;border:1px solid var(--line,#d5dae0);border-radius:6px;background:var(--soft,#f5f6f8);color:inherit}
+.abp-out{margin:8px 0;padding:8px;background:var(--soft,#f5f6f8);border-radius:6px;font:12px ui-monospace,monospace;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto}
+.abp-test{border:1px solid var(--line,#d5dae0);border-radius:6px;margin:8px 0}
+.abp-cat{list-style:none;margin:6px 0;padding:0}.abp-cat li{padding:4px 0;border-bottom:1px solid var(--line,#d5dae0)}.abp-cat .st{font-size:11px;padding:0 6px;border-radius:8px;border:1px solid var(--line,#d5dae0);margin-left:6px}.abp-cat .st.needs_setup{color:var(--err,#b3261e)}.abp-cat small{display:block;color:var(--muted,#5c6773)}.abp-cat button{margin-left:6px;padding:0 8px;min-height:22px;font-size:12px}
+.abp-tblwrap{max-height:260px;overflow:auto;border:1px solid var(--line,#d5dae0);border-radius:6px}
+.abp-log{border-collapse:collapse;width:100%;font:12px ui-monospace,monospace}
+.abp-log th,.abp-log td{padding:3px 8px;border-bottom:1px solid var(--line,#d5dae0);text-align:left;white-space:nowrap}
+.abp-log th{position:sticky;top:0;background:var(--soft,#f5f6f8)}
+.abp-log tr.drop td{color:var(--err,#b3261e)}.abp-log tr.in td:nth-child(2){color:var(--ok,#1e7a4f)}
+</style>
+<script>
+/* ABP 진단 UI: 반드시 ABP 블록 뒤에 둔다. 사용: ABPUI.mount() */
+const ABPUI=(()=>{
+  const $=s=>document.querySelector(s);
+  const p=(n,l=2)=>String(n).padStart(l,'0');
+  const T=t=>{const d=new Date(t);return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())+'.'+p(d.getMilliseconds(),3)};
+  let ctl=null,raf=0;
+  function renderStatus(){
+    const el=$('#abpStatus');if(!el)return;
+    el.textContent='';
+    const s=ABP.status;
+    el.append(s==='ok'?'확장 연결됨'+(ABP.peer&&ABP.peer.version?' (v'+ABP.peer.version+')':''):s==='wait'?'확장 확인 중':'확장 연결 없음'+(ABP.note?' - '+ABP.note:''));
+    if(s==='off'){const b=document.createElement('button');b.type='button';b.textContent='다시 확인';b.style.marginLeft='8px';b.onclick=()=>ABP.rescan();el.append(b);}
+  }
+  function renderPeer(){
+    const el=$('#abpPeer'),sel=$('#abpOp');if(!el)return;
+    const pe=ABP.peer;
+    el.textContent=pe?'확장 v'+pe.version+' · catalogRev '+pe.catalogRev+' · 지원 버전 ['+pe.supportedVersions.join(', ')+'] · 제공 op '+pe.provides.length+'개: '+pe.provides.map(x=>x.op+'@'+x.ver+'('+x.kind+')').join(', '):'확장 정보 없음';
+    const cur=sel.value;sel.textContent='';
+    (pe?pe.provides:[]).filter(x=>!x.op.startsWith('meta.')).forEach(x=>{const o=document.createElement('option');o.value=x.op+'@'+x.ver;o.textContent=x.op+' (v'+x.ver+')';sel.append(o)});
+    if(cur)sel.value=cur;
+    renderCat();
+  }
+  function renderCat(){
+    const ul=$('#abpCat'),rv=$('#abpRev');if(!ul)return;
+    ul.textContent='';const c=ABP.catalog();rv.textContent=c.catalogRev?'catalogRev '+c.catalogRev:'';
+    c.provides.forEach(p=>{
+      const li=document.createElement('li'),b=document.createElement('b');b.textContent=p.op+'@'+p.ver;
+      const k=document.createElement('span');k.className='st '+p.state;k.textContent=p.kind+(p.state==='needs_setup'?' · 설정 필요':'');
+      li.append(b,k);
+      if(ABP.has('meta.describe')&&!p.op.startsWith('meta.')){const d=document.createElement('button');d.type='button';d.textContent='상세';d.dataset.abpDesc=p.op;li.append(d)}
+      const sm=document.createElement('small');
+      sm.textContent=(p.summary||'')+(p.adapters&&p.adapters.length?' · 어댑터: '+p.adapters.map(a=>a.id).join(', '):'')+(p.state==='needs_setup'&&p.hint?' · 안내: '+p.hint:'');
+      li.append(sm);ul.append(li);
+    });
+  }
+  function renderLog(){
+    raf=0;const tb=$('#abpLog');if(!tb||!$('#abpDiag').open)return;
+    tb.textContent='';
+    ABP.log.slice().reverse().forEach(r=>{
+      const tr=document.createElement('tr');tr.className=r.dir;
+      const res=r.dir==='drop'?r.note:(r.type==='result'||r.type==='hello_ack'?(r.ok===false?'오류 '+(r.code||''):'ok'):r.note);
+      [T(r.t),r.dir==='in'?'수신':r.dir==='out'?'송신':'무시',r.type||'',r.op||'',(r.id||'').slice(0,8),res||'',r.size>0?r.size+'B':''].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td)});
+      tb.append(tr);
+    });
+  }
+  const schedule=()=>{if(!raf)raf=requestAnimationFrame(renderLog)};
+  const show=o=>{const el=$('#abpOut');el.hidden=false;el.textContent=typeof o==='string'?o:JSON.stringify(o,null,2)};
+  async function act(a){
+    if(a==='ping'){try{const r=await ABP.ping();show({ping:'ok',ms:r.ms,peer:r.raw})}catch(e){show({ping:'실패',code:e.code,message:e.message})}}
+    else if(a==='rescan'){ABP.rescan();show('다시 확인 중')}
+    else if(a==='refresh'){try{await ABP.refreshCatalog();show('카탈로그를 새로 받았습니다')}catch(e){show({ok:false,code:e.code,message:e.message})}renderPeer()}
+    else if(a==='example'){
+      const [op]=($('#abpOp').value||'').split('@');if(!op)return;
+      try{const d=await ABP.describe(op);if(!d)return show('이 확장은 meta.describe를 제공하지 않습니다');
+        const ex=d.examples&&d.examples[0];if(ex){$('#abpArgs').value=JSON.stringify(ex.args,null,1);show('예시: '+ex.title)}else show('describe에 예시가 없습니다')}catch(e){show({ok:false,code:e.code,message:e.message})}
+    }
+    else if(a==='clear'){ABP.log.length=0;renderLog()}
+    else if(a==='copy'){const t=JSON.stringify(ABP.log,null,1);try{await navigator.clipboard.writeText(t);show('기록 '+ABP.log.length+'건을 복사했습니다')}catch(e){show(t)}}
+    else if(a==='run'){
+      const [op,ver]=($('#abpOp').value||'').split('@');if(!op)return show('op를 선택하세요');
+      let args;try{args=JSON.parse($('#abpArgs').value||'null')}catch(e){return show('args JSON 오류: '+e.message)}
+      ctl=new AbortController();document.querySelector('[data-abp=stop]').disabled=false;show('호출 중...');
+      const t0=Date.now();
+      try{const r=await ABP.call(op,args,{ver:Number(ver)||1,timeoutMs:15000,signal:ctl.signal,onProgress:p=>show('진행: '+p.stage+' '+p.detail+(p.pct==null?'':' ('+Math.round(p.pct*100)+'%)'))});show({ok:true,ms:Date.now()-t0,data:r.data,meta:r.meta})}
+      catch(e){show({ok:false,code:e.code,message:e.message,retryable:e.retryable,text:ABP.errText(e)})}
+      finally{ctl=null;document.querySelector('[data-abp=stop]').disabled=true}
+    }
+    else if(a==='stop'&&ctl)ctl.abort();
+  }
+  function mount(){
+    document.addEventListener('click',async e=>{
+      const b=e.target.closest('[data-abp]');if(b)return act(b.dataset.abp);
+      const d=e.target.closest('[data-abp-desc]');
+      if(d){try{const r=await ABP.describe(d.dataset.abpDesc);show(r||'이 확장은 meta.describe를 제공하지 않습니다')}catch(x){show({ok:false,code:x.code,message:x.message})}}
+    });
+    ABP.on('catalog',renderPeer);
+    $('#abpDiag').addEventListener('toggle',()=>{renderPeer();renderLog()});
+    ABP.on('state',()=>{renderStatus();renderPeer()});ABP.on('log',schedule);
+    renderStatus();renderPeer();
+  }
+  return{mount,renderStatus};
+})();
+</script>

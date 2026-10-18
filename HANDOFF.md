@@ -81,3 +81,19 @@
 - 파일 이동·복사는 `cp` 등 셸 명령으로 하고 `fd` 로 검증한다. Read/Write 전사 금지.
 - 검증은 `npx tsc --noEmit`·`vitest` 우선.
 - 계획 단계에서는 모호한 점을 임의로 정하지 말고 사용자에게 구체적으로 질문해 컨펌을 받는다.
+
+## 9. PoC 진행 상황 (2026-10-17)
+
+계획: `docs/plans/2026-10-17-poc-extension.md`. 구현은 `src/`, 빌드는 Svelte 5 + Vite + crxjs.
+
+| 경로 | 내용 |
+| --- | --- |
+| `src/lib/protocol.ts`, `schema.ts`, `calc.ts`, `origin.ts`, `messages.ts` | 봉투·오류·검증, JSON Schema 부분집합, 수식 파서, 오리진 검사, 팝업↔SW 메시지 계약 |
+| `src/background/registry.ts`, `ops/calc.ts` | op 레지스트리(`meta.describe` 자동 포함), `calc.eval@1` |
+| `src/background/session.ts` | 포트별 세션. 제공자(앱 call 처리·로그)와 호출자(`callApp`, timeout+2초, busy 재시도 2회) |
+| `src/background/translate.ts` | `text.translate` 라우팅(최근 연결 앱, 없으면 탭 열고 30초 대기), 작업 상태, 결과 뒤 팝업 재오픈 |
+| `src/background/log.ts` | 앱 → 확장 호출 로그(IndexedDB, 본문 포함 — PoC 예외) |
+| `src/background/settings.ts` | AI tier(quick/normal/advanced) 저장 |
+| `src/popup/` | 팝업 UI(tier, 번역 입력·결과, 연결 상태) |
+
+남은 일: 아티팩트 게시 후 `src/config.ts` 의 `ARTIFACT_URL` 채우기, 실제 브라우저 E2E, 게시 페이지의 프레임 origin 실측, 로그 열람·다운로드 UI.
