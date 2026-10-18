@@ -15,7 +15,8 @@ export interface CallLogSink {
 }
 
 export interface SessionDeps {
-  registry: Registry
+  /** 플러그인 승인에 따라 바뀐다. 호출할 때마다 읽으므로 getter 로 최신 레지스트리를 돌려줘도 된다 */
+  readonly registry: Registry
   log: CallLogSink
   extVersion: string
   now(): number
@@ -86,6 +87,11 @@ export class AppSession {
     this.send('hello', `x-${this.key}-${this.deps.uuid()}`, this.helloBody())
   }
 
+  /** 카탈로그가 바뀌었음을 앱에 알린다(명세 01 3.8). 앱은 설명 캐시를 버리고 목록을 다시 받는다 */
+  notifyCatalog(): void {
+    this.send('event', `x-${this.key}-${this.deps.uuid()}`, { name: 'catalog_changed', data: { catalogRev: this.deps.registry.catalogRev } })
+  }
+
   provides(op: string, ver: number): ProvidedOp | undefined {
     return this.peerProvides.find((p) => p.op === op && p.ver === ver && p.state !== 'needs_setup')
   }
@@ -139,11 +145,12 @@ export class AppSession {
   private async handleCall(data: V2Envelope) {
     const id = data.id
     const startedAt = this.deps.now()
+    let untrusted = false
     const op = typeof data.op === 'string' ? data.op.slice(0, 64) : ''
     const ver = typeof data.ver === 'number' ? data.ver : 0
     const finish = (out: { ok: true; data: unknown } | { ok: false; error: V2Error }) => {
       const endTs = this.deps.now()
-      if (out.ok) this.send('result', id, { ok: true, data: out.data, meta: { elapsedMs: endTs - startedAt } })
+      if (out.ok) this.send('result', id, { ok: true, data: out.data, meta: { elapsedMs: endTs - startedAt, ...(untrusted ? { untrusted: true } : {}) } })
       else this.send('result', id, { ok: false, error: out.error })
       void this.deps.log.appendSafe({
         ts: startedAt, endTs, elapsedMs: endTs - startedAt, ns: this.ns, origin: this.origin, op, ver,
@@ -166,6 +173,7 @@ export class AppSession {
         error: V2_ERRORS.unsupported_op(`지원하지 않는 op: ${c.call.op} v${c.call.ver}`, { known: this.deps.registry.known() }),
       })
     }
+    untrusted = def.untrusted === true
     const a = checkArgs(def, c.call.args)
     if (!a.ok) return finish({ ok: false, error: a.error })
     if ([...this.active.values()].some((x) => x.op === def.name)) return finish({ ok: false, error: V2_ERRORS.busy() })
@@ -184,6 +192,7 @@ export class AppSession {
               this.send('progress', id, { stage, ...(detail ? { detail } : {}), ...(pct !== undefined ? { pct } : {}) })
           },
           sender: { ns: this.ns, origin: this.origin, tabId: this.tabId },
+          timeoutMs,
         }),
         new Promise<never>((_, reject) => {
           controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true })

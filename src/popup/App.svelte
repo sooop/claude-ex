@@ -4,6 +4,7 @@
     TIERS,
     TIER_LABEL,
     TRANSLATE_MAX_CHARS,
+    type PluginInfo,
     type StatusResponse,
     type Tier,
     type TranslateJob,
@@ -16,7 +17,10 @@
   let text = $state('')
   let formError = $state('')
   let copied = $state(false)
+  let plugins = $state<PluginInfo[]>([])
 
+  const pendingPlugins = $derived(plugins.filter((p) => p.status === 'pending'))
+  const knownPlugins = $derived(plugins.filter((p) => p.status !== 'pending'))
   const busy = $derived(job?.state === 'waiting_app' || job?.state === 'running')
   const canTranslate = $derived(text.trim().length > 0 && !busy)
   const elapsed = $derived(
@@ -45,10 +49,43 @@
     }
   }
 
+  async function refreshPlugins() {
+    try {
+      plugins = await send<PluginInfo[]>({ kind: 'plugins' })
+    } catch (e) {
+      formError = msg(e)
+    }
+  }
+
+  async function pluginAction(kind: 'approvePlugin' | 'denyPlugin' | 'removePlugin', extId: string) {
+    try {
+      await send({ kind, extId })
+    } catch (e) {
+      formError = msg(e)
+    }
+    refreshPlugins()
+  }
+
+  /** 승인 카드의 변경 요약. 추가·삭제가 없으면 설명·스키마 변경으로 본다 */
+  function diffLines(p: PluginInfo): string[] {
+    const d = p.diff
+    if (!d) return []
+    const out: string[] = []
+    if (d.addedOps.length) out.push(`추가 op: ${d.addedOps.join(', ')}`)
+    if (d.removedOps.length) out.push(`삭제 op: ${d.removedOps.join(', ')}`)
+    if (d.addedAdapters.length) out.push(`추가 어댑터: ${d.addedAdapters.join(', ')}`)
+    if (d.removedAdapters.length) out.push(`삭제 어댑터: ${d.removedAdapters.join(', ')}`)
+    if (d.modified.length || out.length === 0) out.push(`설명·스키마 변경${d.modified.length ? `: ${d.modified.join(', ')}` : ''}`)
+    return out
+  }
+
   onMount(() => {
     refresh()
+    refreshPlugins()
     return onEvent((e) => {
-      if (e.kind === 'jobUpdate') {
+      if (e.kind === 'pluginsChanged') {
+        refreshPlugins()
+      } else if (e.kind === 'jobUpdate') {
         job = e.job
         markSeen(e.job)
       } else {
@@ -111,6 +148,41 @@
     </p>
   </header>
 
+  {#if pendingPlugins.length > 0}
+    <section class="pending" aria-live="polite">
+      <h2>플러그인 승인 대기</h2>
+      {#each pendingPlugins as p (p.extId)}
+        <div class="card">
+          <p class="name">{p.name} <span class="hint">v{p.version}</span></p>
+          <p class="hint id">{p.extId}</p>
+          <ul>
+            {#each p.ops as o (o.name + o.ver)}
+              <li>op <b>{o.name}</b> — {o.summary}</li>
+            {/each}
+            {#each p.adapters as a (a.op + a.id)}
+              <li>어댑터 <b>{a.op}/{a.id}</b> — {a.summary}</li>
+            {/each}
+          </ul>
+          {#if p.diff}
+            <p class="diff">이전 승인과의 차이</p>
+            <ul>
+              {#each diffLines(p) as line (line)}
+                <li>{line}</li>
+              {/each}
+            </ul>
+          {/if}
+          <div class="row">
+            <span class="hint">허용하면 아티팩트가 이 기능을 호출할 수 있습니다</span>
+            <span class="actions">
+              <button type="button" class="ghost" onclick={() => pluginAction('denyPlugin', p.extId)}>거부</button>
+              <button type="button" class="primary" onclick={() => pluginAction('approvePlugin', p.extId)}>허용</button>
+            </span>
+          </div>
+        </div>
+      {/each}
+    </section>
+  {/if}
+
   <section>
     <h2>AI 품질 설정</h2>
     <div class="seg" role="group" aria-label="AI 품질">
@@ -142,6 +214,23 @@
     </div>
     {#if formError}
       <p class="err">{formError}</p>
+    {/if}
+  </section>
+
+  <section>
+    <h2>플러그인</h2>
+    {#if knownPlugins.length === 0}
+      <p class="hint">승인된 플러그인이 없습니다</p>
+    {:else}
+      {#each knownPlugins as p (p.extId)}
+        <div class="row plugin">
+          <span>
+            {p.name} <span class="hint">v{p.version}{p.status === 'denied' ? ' · 거부됨' : ''}</span>
+            <span class="hint block">{p.adapters.map((a) => a.id).concat(p.ops.map((o) => o.name)).join(', ') || '선언 없음'}</span>
+          </span>
+          <button type="button" class="ghost" onclick={() => pluginAction('removePlugin', p.extId)}>해제</button>
+        </div>
+      {/each}
     {/if}
   </section>
 
@@ -277,6 +366,39 @@
     word-break: break-word;
     font: inherit;
     user-select: text;
+  }
+  .pending .card {
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid #ef6c00;
+    border-radius: var(--radius);
+  }
+  .pending .card + .card {
+    margin-top: 8px;
+  }
+  .name {
+    font-weight: 600;
+  }
+  .id {
+    word-break: break-all;
+  }
+  .card ul {
+    margin: 6px 0 0;
+    padding-left: 16px;
+    font-size: 12px;
+    word-break: break-word;
+  }
+  .diff {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-sub);
+  }
+  .plugin {
+    gap: 8px;
+  }
+  .block {
+    display: block;
+    word-break: break-word;
   }
   .src {
     margin-top: 6px;

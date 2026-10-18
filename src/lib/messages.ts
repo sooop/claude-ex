@@ -43,6 +43,25 @@ export interface StatusResponse {
   job: TranslateJob | null
 }
 
+/** 승인 카드·목록에 보이는 플러그인 한 건 */
+export interface PluginInfo {
+  extId: string
+  name: string
+  version: string
+  status: 'active' | 'pending' | 'denied'
+  ops: { name: string; ver: number; summary: string }[]
+  adapters: { op: string; id: string; summary: string }[]
+  /** 이전에 승인한 카탈로그가 있을 때만. 승인 대기 카드의 "이전 승인과의 차이" */
+  diff?: {
+    addedOps: string[]
+    removedOps: string[]
+    addedAdapters: string[]
+    removedAdapters: string[]
+    /** 이름은 같은데 설명·스키마가 바뀐 op·어댑터 */
+    modified: string[]
+  }
+}
+
 export type PopupRequest =
   | { kind: 'status' }
   | { kind: 'setTier'; tier: Tier }
@@ -50,10 +69,14 @@ export type PopupRequest =
   | { kind: 'cancelJob' }
   /** 팝업이 결과를 보여 줬음을 알린다(unseen 해제, 배지 지움) */
   | { kind: 'seenJob' }
+  | { kind: 'plugins' }
+  | { kind: 'approvePlugin'; extId: string }
+  | { kind: 'denyPlugin'; extId: string }
+  | { kind: 'removePlugin'; extId: string }
 
 export type TranslateResponse = { ok: true; jobId: string } | { ok: false; error: { code: string; message: string } }
 
 /** 서비스 워커 → 열린 팝업 브로드캐스트 */
-export type PopupEvent = { kind: 'jobUpdate'; job: TranslateJob | null } | { kind: 'statusChanged' }
+export type PopupEvent = { kind: 'jobUpdate'; job: TranslateJob | null } | { kind: 'statusChanged' } | { kind: 'pluginsChanged' }
 
 export const TRANSLATE_MAX_CHARS = 2000

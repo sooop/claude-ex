@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqqmYDugPy/LJJ90DR87Py8ZNHsX/oIRgLC+tL6B4brA19DD9coitKtQHWzNTsY2qvX0zHgbo8XJxAxfxvG9t17FT1DPHSNew3LB/uGxOtoG0QoDlEslE1Vonkm3UVMBk78LeQJTbp8fj4hn6WG4YYJ4zuOJIjK/fwHjKrnGX+tT0z7eH9ra+OOK5uvMGEfKUz+RZmZ1RiviZVBs9sCTUkwf8LUAAu4bqvCagrDLm3bYDmG1KGCvO8DIowP7I/qMYsdlhQeBH2z2sE/UcpCG3WIkXxtVf3s5c5KR4ChHoD/Y0OhGz1qlpVyKQVQpnCEBB9HNSzlC6LXdADcrtEnZs5wIDAQAB",
   "name": "claude-ex (PoC)",
   "version": "0.1.0",
   "description": "아티팩트의 작업을 대신 수행하는 위임 확장 개념 실증",
