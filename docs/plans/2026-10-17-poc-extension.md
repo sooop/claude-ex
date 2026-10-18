@@ -40,7 +40,7 @@ src/
   background/router.ts      세션 목록에서 최근 provider 선택. 없으면 탭을 열고 hello를 기다린 뒤(30초) 전송
   background/translateJob.ts 진행 중이거나 마지막 번역 작업을 chrome.storage.session에 보관. 배지, openPopup
   background/log.ts         IndexedDB(`claude-ex` DB, `calls` 스토어, ts 인덱스). 8KiB에서 자름, 1,000건 초과분 정리
-  background/settings.ts    tier 읽기·쓰기(chrome.storage.local, 기본값 normal)
+  background/settings.ts    tier 읽기·쓰기(chrome.storage.local, 기본값 quick)
   content/bridge.ts         ← reference 복사: window ↔ 포트 중계. v1 분기 제거. 앱발 result·progress·hello_ack도 SW로 중계(확장 → 앱 호출용)
   popup/App.svelte, main.ts 상태(연결된 앱 수, 최근 앱), tier 선택, 번역 입력·결과, 진행·오류 표시. 열면 마지막 작업을 복원
 ```

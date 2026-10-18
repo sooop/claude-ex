@@ -2,7 +2,7 @@
 import { TIERS, type Tier } from '@/lib/messages'
 
 const KEY = 'settings.tier'
-const DEFAULT_TIER: Tier = 'normal'
+const DEFAULT_TIER: Tier = 'quick'
 
 export const isTier = (x: unknown): x is Tier => typeof x === 'string' && (TIERS as readonly string[]).includes(x)
 
