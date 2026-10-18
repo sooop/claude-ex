@@ -111,3 +111,4 @@
 - 허브 확장 ID 는 manifest `key` 로 `cmnfclffoomldhdnghjbcdgednhaknho` 에 고정했다. 키 쌍은 저장소 밖 `%USERPROFILE%\.claude-ex-keys\` 에 있다(비밀키는 커밋하지 않는다).
 - 첫 플러그인은 postal(`web.query` 어댑터 `epost-zip`·`juso-addr`·`zip-auto`). postal 은 manifest 에 `key` 를 넣지 않는다(ID 가 바뀌면 학습 데이터·캐시를 잃는다).
 - 플러그인 만들기: SDK 의 `serveAsCompanion({hubId, name, version, catalog, handle})` 을 서비스 워커에서 한 번 부른다. 예시는 postal `src/plugin/`.
+- 실제 Chrome 확인(2026-10-18, 사용자): 허브 재설치·ID 고정, postal 승인 흐름, 허브 경유 `web.query`, 재승인, 플러그인 꺼짐 시 오류, 허브 없이 postal v1 동작을 계획 4단계 절차대로 확인했다.
